@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pet_app/LogIn.dart';
-import 'package:pet_app/PostPage.dart';
-import 'CustomButton.dart';
-import 'LogIn.dart';
-import 'RegisterPage.dart';
-import 'MainPage.dart';
+import 'SignupPage.dart';
+import 'PetApp.dart';
 
 void main() {
   runApp(const MyApp());
@@ -41,6 +38,7 @@ class _WelcomePageState extends State<WelcomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           Container(
@@ -83,7 +81,7 @@ class _WelcomePageState extends State<WelcomePage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         CustomButton(
-                          label: '登入(DEMO)',
+                          label: '登入',
                           onPressed: () {
                             Navigator.push(
                               context,
@@ -100,7 +98,7 @@ class _WelcomePageState extends State<WelcomePage> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => RegisterPage(),
+                                builder: (context) => SignupPage(),
                               ),
                             );
                           },

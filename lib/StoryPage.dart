@@ -1,21 +1,33 @@
+import 'dart:ffi';
 import 'package:flutter/material.dart';
+import 'package:pet_app/MainPage.dart';
+import 'package:pet_app/ProfilePage.dart';
 import 'package:pet_app/ReadPostPage.dart';
 import 'PetApp.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:core';
+import 'package:intl/intl.dart';
+import 'package:auto_size_text/auto_size_text.dart';
 
 class StoryPage extends StatefulWidget {
   const StoryPage(
       {super.key, required this.Post_list, required this.Post_Index});
-  final List<Post> Post_list;
+  final List<Posts> Post_list;
   final int Post_Index;
-
+  
   @override
   State<StoryPage> createState() => _StoryPageState();
 }
 
 class _StoryPageState extends State<StoryPage> {
   late ScrollController _scrollController;
+  String GetUserUrl = PetApp.Server_Url + '/user/';
   double _scrollOffset = 0;
-  List<bool> isLiked = [true, false, false];
+  bool is_me = false, follow_flag = false;
+  late List<bool> likeList;
+  TextEditingController textController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -30,42 +42,310 @@ class _StoryPageState extends State<StoryPage> {
         initialScrollOffset: _scrollOffset * widget.Post_Index * 6 / 7);
   }
 
+
+
+  void _onItemTapped(int index) {
+
+    switch (index) {
+      case 0:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => MainPage(current_index: 0)),
+        );
+        break;
+      case 1:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => MainPage(current_index: 1)),
+        );
+        break;
+      case 2:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) =>MainPage(current_index: 2)),
+        );
+        break;
+      case 3:
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => MainPage(current_index: 3)),
+        );
+        break;
+    }
+  }
+
+  Future<Posts> GetPost(int post_id) async {
+    Posts post = new Posts(owner_id: "", content: "", id: 0, timestamp: 0);
+    final response = await http.get(Uri.parse("${PetApp.Server_Url}/posts/{post_id}?id=$post_id"), headers: {
+      'accept': 'application/json',
+    });
+
+    if (response.statusCode == 200) {
+      final responseData = json.decode(utf8.decode(response.bodyBytes));
+      List<Like> _like = [];
+      var temp1 = responseData['files'][0]['file_path'].split("/");
+      var temp2 = temp1[1].split(".");
+      for (var like in responseData['likes']) {
+        _like.add(
+          Like(liker: like['liker'], timestamp: like['timestamp'])
+        );
+      }
+      post.owner_id = responseData["owner_id"];
+      post.content = responseData["content"];
+      post.id = responseData["id"];
+      post.timestamp = responseData["timestamp"];
+      post.response_to = responseData['response_to'];
+      post.label = responseData['label'];
+      post.Likes = _like;
+      post.post_picture = "${PetApp.Server_Url}/file/${temp2[0]}";
+
+    } else {
+      print(
+          'Request failed with status: ${json.decode(response.body)['detail']}.');
+    }
+    return post;
+  }
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Color.fromRGBO(96, 175, 245, 1),
+        title: Center(
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Text(
+                "PETSHARE",
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  foreground: Paint()
+                    ..style = PaintingStyle.stroke
+                    ..strokeWidth = 1
+                    ..color = Colors.black,
+                ),
+              ),
+              Text(
+                "PETSHARE",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        automaticallyImplyLeading: false,
+      ),
       body: ListView.builder(
         controller: _scrollController,
         itemCount: widget.Post_list.length,
         itemBuilder: (BuildContext context, int index) {
-          //return Text(widget.Post_list[index].pictures);
-          return buildPost(widget.Post_list[index], index);
+          return FutureBuilder<Posts>(
+            future: GetPost(widget.Post_list[index].id),
+            builder: (BuildContext context, AsyncSnapshot<Posts> snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return CircularProgressIndicator();
+              } else if (snapshot.hasError) {
+                return Text("Error: ${snapshot.error}");
+              } else {
+                final _post = snapshot.data;
+                return buildPost(_post!, index);
+              }
+            },
+          );
         },
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        selectedItemColor: Colors.yellow,
+        selectedIconTheme: IconThemeData(size: 30),
+        unselectedIconTheme: IconThemeData(size: 20),
+        showSelectedLabels: false,
+        showUnselectedLabels: false,
+        backgroundColor: Colors.white,
+        onTap: _onItemTapped,
+        type: BottomNavigationBarType.fixed,
+        items: [
+          BottomNavigationBarItem(
+            icon: Icon(
+              Icons.home_outlined,
+              color: Colors.blue,
+            ),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(
+              Icons.upload_outlined,
+              color: Colors.blue,
+            ),
+            label: 'Search',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(
+              Icons.chat_outlined,
+              color: Colors.blue,
+            ),
+            label: 'Favorites',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(color: Colors.blue, Icons.person_outlined),
+            label: 'Profile',
+          ),
+        ],
       ),
     );
   }
 
-  Widget buildPost(Post Post, int post_index) {
-    bool _isVisible = false;
+  Widget buildPost(Posts Post, int post_index) {
+    User user = new User(email: "", name: "", intro: "", locations: "", password: "");
+    List<Comment> comments = [];
+    bool Liked = false;
 
-    Widget buildNameTextField(String name, String icon) {
-      return Expanded(
-        flex: 1, // 20%
-        child: ListTile(
-          visualDensity: const VisualDensity(vertical: 3),
-          dense: true,
-          leading: CircleAvatar(
-            backgroundImage: AssetImage(icon),
-          ),
-          title: Text(
-            name,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold, // 设置文本加粗
-            ),
-          ),
-        ),
-      );
+    if (Post.Likes != [] && (Post.Likes.contains(PetApp.CurrentUser.email))) {
+      Liked = true;
     }
+
+    Future<void> GetUser(String ownerId) async {
+      List<Posts> _post = [];
+      List<Pet> _pet = [];
+      List<String> _follower = [], _following = [];
+      final response = await http.get(Uri.parse(GetUserUrl + ownerId), headers: {
+        'accept': 'application/json',
+      });
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(utf8.decode(response.bodyBytes));
+        for (var post in responseData['posts']) {
+          if (post['response_to'] == 0) {
+            var temp1 = post['files'][0]['file_path'].split("/");
+            var temp2 = temp1[1].split(".");
+            List<Like> _like = [];
+            for (var like in post['likes']) {
+              _like.add(
+                Like(liker: like['liker'], timestamp: like['timestamp'])
+              );
+            }
+            _post.add(Posts(
+                owner_id: post["owner_id"],
+                content: post["content"],
+                id: post["id"],
+                label: post['label'],
+                timestamp: post["timestamp"],
+                response_to: post['response_to'],
+                Likes: _like,
+                post_picture: "${PetApp.Server_Url}/file/${temp2[0]}"));
+          }
+        }
+        for (var pets in responseData['pets']) {
+          var temp1 = pets['files'][0]['file_path'].split("/");
+          var temp2 = temp1[1].split(".");
+          _pet.add(Pet(
+            owner: pets['owner'],
+            birthday: pets['birthday'],
+            breed: pets['breed'],
+            gender: pets['gender'],
+            id: pets['id'],
+            name: pets['name'],
+            personality_labels: pets['personality_labels'],
+            picture: "${PetApp.Server_Url}/file/${temp2[0]}"
+          ));
+        }
+
+        for (var fs in responseData['follows']) {
+        _following.add(fs['follows']);
+      }
+
+      for (var fs in responseData['followed_by']) {
+        _follower.add(fs['follower']);
+      }
+
+        user.email = responseData['email'];
+        user.name = responseData['name'];
+        user.intro = responseData['intro'];
+        user.posts = _post;
+        user.pets = _pet;
+        user.Follower = _follower;
+        user.Following = _following;
+        user.profile_picture =
+            "${PetApp.Server_Url}/user/${responseData['email']}/profile_picture";
+      } else {
+        print(
+            'Request failed with status: ${json.decode(response.body)['detail']}.');
+      }
+    }
+
+    Future<void> ToggleLike() async {
+      final response = await http.post(
+        Uri.parse("${PetApp.Server_Url}/posts/like"),
+        headers: {
+          'accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${PetApp.CurrentUser.authorization}',
+        },
+        body: jsonEncode({
+          'liker': PetApp.CurrentUser.email,
+          'liked_post': Post.id,
+        }),
+      );
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        print(responseData);
+      } else {
+        print(
+            'Request failed with status: ${json.decode(response.body)['detail']}.');
+      }
+    }
+
+    Widget buildNameTextField(String ownerId) {
+    return FutureBuilder(
+      future: GetUser(ownerId),
+      builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          // Show a loading indicator while fetching data
+          return CircularProgressIndicator();
+        } else if (snapshot.hasError) {
+          // Handle error case
+          return Text('Error: ${snapshot.error}');
+        } else {
+          // Data has been fetched, display the owner's name and photo
+          return Expanded(
+            flex: 1,
+            child: GestureDetector(
+              onTap: () {
+                if (user.Follower.contains(PetApp.CurrentUser.email)) {
+                    follow_flag = true;
+                  }
+                  if (user.email == PetApp.CurrentUser.email) {
+                    is_me = true;
+                  }
+                Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => ProfilePage(Is_Me: is_me, user: user, followed: follow_flag,extra_Appbar: true,)),
+                        );
+              },
+              child: ListTile(
+                visualDensity: const VisualDensity(vertical: 3),
+                dense: true,
+                leading: CircleAvatar(
+                  backgroundImage: NetworkImage(user.profile_picture),
+                ),
+                title: Text(
+                  user.name,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+      },
+    );
+  }
 
     Widget buildPicture(String picture) {
       return Expanded(
@@ -78,37 +358,62 @@ class _StoryPageState extends State<StoryPage> {
       );
     }
 
-    Widget buildLikeField(int likeNum, int index) {
+    Widget buildLikeField() {
       return Row(
         children: [
           SizedBox(width: 12),
           IconButton(
             icon: Icon(
-              isLiked[index] ? Icons.favorite : Icons.favorite_border,
-              color: isLiked[index] ? Colors.red : null,
+              Liked ? Icons.favorite : Icons.favorite_border,
+              color: Liked ? Colors.red : null,
             ),
-            onPressed: () {
+            onPressed: () async {
+              await ToggleLike();
+              Liked = !Liked;
               setState(() {
-                isLiked[index] = !isLiked[index];
               });
             },
           ),
           Text(
-            "$likeNum個喜歡",
+            "${Post.Likes.length} 個喜歡",
             style: TextStyle(fontSize: 16),
           ),
         ],
       );
     }
 
+
     Widget buildTextField(String text) {
       return Expanded(
         flex: 2, // 20%
         child: Padding(
           padding: EdgeInsets.all(20.0),
-          child: Text(
+          child: AutoSizeText(
             text,
-            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+            overflowReplacement: GestureDetector(
+              onTap: (){
+                print('未完');
+                Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => ReadPostPage(
+                          post: Post,
+                          ownername: user.name,
+                          ownerphoto: user.profile_picture
+                        )),
+              );
+
+            },
+            child:  Column(children:[
+              Text(text,maxLines: 1,),
+              SizedBox(height: 20,),
+              Text('...顯示更多')
+
+            ]),
+            
+            ),
+            
           ),
         ),
       );
@@ -120,13 +425,13 @@ class _StoryPageState extends State<StoryPage> {
         child: Text(
           date,
           style: TextStyle(
-            color: Colors.grey[400], // 使用淡化的颜色值
+            color: Colors.grey[400],
           ),
         ),
       );
     }
 
-    Widget buildLabelField(List<String> label) {
+    Widget buildLabelField(List<String> label, String txt) {
       return Row(
         children: [
           SizedBox(
@@ -153,9 +458,39 @@ class _StoryPageState extends State<StoryPage> {
         ],
       );
     }
+    Future<void> GetComment() async {
+    List<Comment> _comment = [];
+    final response = await http.get(
+        Uri.parse(PetApp.Server_Url + '/posts/{post_id}/replies?postid=${Post.id}'),
+        headers: {
+          'accept': 'application/json',
+        });
 
-    Widget buildMessageField(List<Comment> messages) {
-      return Row(
+    if (response.statusCode == 200) {
+      final responseData = json.decode(utf8.decode(response.bodyBytes));
+      for (var message in responseData) {
+        _comment.add(Comment(
+            owner_id: message["owner_id"],
+            content: message["content"],
+            timestamp: message["timestamp"],
+            response_to: message['response_to']));
+      }
+      comments = _comment;
+    } else {
+      print(
+          'Request failed with status: ${json.decode(response.body)['detail']}.');
+    }
+  }
+    Widget buildMessageField() {
+  return FutureBuilder<void>(
+    future: GetComment(),
+    builder: (BuildContext context, AsyncSnapshot<void> snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) {
+        return CircularProgressIndicator(); // 显示加载指示器
+      } else if (snapshot.hasError) {
+        return Text('Error: ${snapshot.error}'); // 显示错误消息
+      } else {
+        return  Row(
         children: [
           SizedBox(
             width: 12,
@@ -167,79 +502,55 @@ class _StoryPageState extends State<StoryPage> {
                 MaterialPageRoute(
                     builder: (context) => ReadPostPage(
                           post: Post,
+                          ownername: user.name,
+                          ownerphoto: user.profile_picture
                         )),
               );
             },
             child: Text(
-              '查看全部${messages.length}則留言',
+              '查看全部${comments.length}則留言',
               style: TextStyle(
-                color: Colors.grey[400], // 使用淡化的颜色值
+                color: Colors.grey[400],
               ),
             ),
           ),
         ],
       );
-      // return Expanded(
-      //   flex: 4, // 20%
-      //   child: Column(
-      //     children: [
-      //       for (int i = 0;
-      //           i < (messages.length > 2 ? 2 : messages.length);
-      //           i++)
-      //         Row(
-      //           children: [
-      //             Padding(
-      //               padding: EdgeInsets.all(8),
-      //               child: CircleAvatar(
-      //                 backgroundImage: NetworkImage(messages[i].user.photo),
-      //                 radius: 15.0,
-      //               ),
-      //             ),
-      //             Padding(
-      //               padding: EdgeInsets.all(8),
-      //               child: Text(messages[i].comment_info),
-      //             ),
-      //           ],
-      //         ),
-      //       if (messages.length > 2 && !_isVisible)
-      //         Row(
-      //           children: [
-      //             Padding(
-      //               padding: EdgeInsets.all(8),
-      //               child: TextButton(
-      //                 child: Text('查看全部留言'),
-      //                 onPressed: () {
-      //                   setState(() {
-      //                     _isVisible = true;
-      //                   });
-      //                 },
-      //               ),
-      //             ),
-      //           ],
-      //         ),
-      //       if (_isVisible)
-      //         for (int i = 2; i < messages.length; i++)
-      //           Row(
-      //             children: [
-      //               Padding(
-      //                 padding: EdgeInsets.all(8),
-      //                 child: CircleAvatar(
-      //                   backgroundImage: NetworkImage(messages[i].user.photo),
-      //                   radius: 15.0,
-      //                 ),
-      //               ),
-      //               Padding(
-      //                 padding: EdgeInsets.all(8),
-      //                 child: Text(messages[i].comment_info),
-      //               ),
-      //             ],
-      //           ),
-      //     ],
-      //   ),
-      // );
+      }
+    },
+  );
+}
+
+    Future<void> createReply(
+        int postId, int postAttraction, String postContent) async {
+      final response = await http.post(
+        Uri.parse(PetApp.Server_Url + '/posts'),
+        headers: {
+          'accept': 'application/json',
+          'Authorization': 'Bearer ' + PetApp.CurrentUser.authorization,
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          "owner_id": PetApp.CurrentUser.email,
+          "response_to":postId,
+          "attraction": postAttraction,
+          "content": postContent,
+          "label": "",
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+
+        print(responseData);
+      } else {
+        print(
+            'Request failed with status: ${json.decode(response.body)['detail']}.');
+      }
     }
 
-    Widget buildInputMessageField(String usericon) {
+    Widget buildInputMessageField() {
+      
       return Expanded(
         flex: 1, // 20%
         child: Row(
@@ -254,10 +565,10 @@ class _StoryPageState extends State<StoryPage> {
                       color: Color.fromRGBO(96, 175, 245, 1),
                       width: 1,
                     ),
-
-                    borderRadius: BorderRadius.circular(20), // 设置圆角半径
+                    borderRadius: BorderRadius.circular(20),
                   ),
                   child: TextField(
+                    controller: textController,
                     autofocus: false,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
@@ -273,7 +584,8 @@ class _StoryPageState extends State<StoryPage> {
             IconButton(
               iconSize: 40,
               onPressed: () {
-                // 这里可以写提交操作的代码
+                String messagetext = textController.text;
+                createReply(Post.id, 1, messagetext);
               },
               icon: Image.asset(
                 'assets/image/post_message_submit.png',
@@ -293,15 +605,15 @@ class _StoryPageState extends State<StoryPage> {
             mainAxisAlignment: MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              buildNameTextField(Post.poster.name, Post.poster.photo),
+              buildNameTextField(Post.owner_id),
               SizedBox(height: 20),
-              buildPicture(Post.pictures),
-              buildLikeField(Post.like_count, post_index),
-              buildTextField(Post.post_info),
-              buildDateField('5月20號 16:34'),
-              buildLabelField(Post.label),
-              buildMessageField(Post.comments),
-              buildInputMessageField(Post.poster.photo)
+              buildPicture(Post.post_picture),
+              buildLikeField(),
+              buildTextField(Post.content),
+              buildDateField(DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.fromMillisecondsSinceEpoch(Post.timestamp * 1000))),
+              buildLabelField(Post.label.split(","), Post.label),
+              buildMessageField(),
+              buildInputMessageField()
             ]),
       ),
     );

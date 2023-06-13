@@ -1,9 +1,7 @@
 import 'dart:io';
 import 'location_service.dart';
 import 'package:flutter/material.dart';
-import 'package:pet_app/CustomButton.dart';
 import 'package:pet_app/PetApp.dart';
-import 'MainPage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'main.dart';
 import 'package:http/http.dart' as http;
@@ -76,6 +74,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               label: '下一步',
               onPressed: () {
                 nickname = _nameController.text;
+                
                 Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -206,16 +205,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
           ),
         ),
         DropdownMenuItem(
-          value: "Dolphin",
+          value: "Rabbit",
           child: Text(
-            "海豚",
+            "兔子",
             style: TextStyle(color: Colors.black),
           ),
         ),
         DropdownMenuItem(
-          value: "Dinosaur",
+          value: "Bird",
           child: Text(
-            "恐龍",
+            "鳥",
             style: TextStyle(color: Colors.black),
           ),
         ),
@@ -229,7 +228,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
       ],
       hint: const Text("動物種類"), // 當沒有初始值時顯示
       onChanged: (selectValue) {
-        //選中後的回撥
         setState(() {
           type = selectValue;
         });
@@ -287,12 +285,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   padding: EdgeInsets.all(20),
                   children: [
                     buildTitle('您的暱稱'),
-                    buildIntroTextField("黃曉明", _nameController),
+                    buildIntroTextField("限輸入半形英數字", _nameController),
                     buildSexRadioButton(),
                     buildTitle('飼養的動物種類'),
                     buildPetType(),
                     buildTitle('經常散步區域'),
-                    buildIntroTextField("台南市 東區", _locationController),
+                    buildIntroTextField("例如: 台南市 東區", _locationController),
                   ],
                 ),
               ),
@@ -332,17 +330,30 @@ class _EditUploadPhotoState extends State<EditUploadPhoto> {
     setState(() {
       if (pickedImage != null) {
         _imageFile = File(pickedImage.path);
+        profile_picture = pickedImage.path;
+        print(pickedImage.path);
       } else {
         _imageFile = null;
+        profile_picture = _empty;
       }
     });
   }
 
   Widget buildNextStepButton() {
-    String signupUrl = 'http://10.0.2.2:8000/user/signup';
-    String loginUrl = 'http://10.0.2.2:8000/user/login';
+    String signupUrl = PetApp.Server_Url + '/user/signup';
+    String loginUrl = PetApp.Server_Url + '/user/login';
+    String _latlon = "0,0";
+    String Authorization = "";
+
+    Future<void> init_place(Map<String, dynamic> place) async {
+      final double lat = place['geometry']['location']['lat'];
+      final double lng = place['geometry']['location']['lng'];
+      
+      _latlon = lat.toString() + "," + lng.toString();
+    }
 
     Future<void> signupUser() async {
+      // print(signupUrl);
       final response = await http.post(
         Uri.parse(signupUrl),
         headers: {
@@ -353,7 +364,8 @@ class _EditUploadPhotoState extends State<EditUploadPhoto> {
           'email': widget.user_email,
           'name': widget.nickname,
           'intro': "",
-          'birthday': "2023/6/1",
+          'location': _latlon,
+          'birthday': "2023/6/7",
           'password': widget.user_password
         }),
       );
@@ -366,7 +378,28 @@ class _EditUploadPhotoState extends State<EditUploadPhoto> {
       }
     }
 
+    Future<void> UploadUserProfilePicture() async {
+      var upUrl = Uri.parse("${PetApp.Server_Url}/user/${widget.user_email}/profile_picture?fileending=jpg");
+      print(upUrl);
+      var request = http.MultipartRequest('POST', upUrl);
+      request.headers.addAll({
+        'accept': 'application/json',
+        'Authorization': "Bearer $Authorization",
+      });
+      print(profile_picture);
+      request.files.add(await http.MultipartFile.fromPath('file', profile_picture));
+
+      var response = await request.send();
+
+      if (response.statusCode == 200) {
+        print('Profile picture uploaded successfully');
+      } else {
+        print('Failed to upload profile picture. Status code: ${response.statusCode}');
+      }
+    }
+
     Future<void> loginUser() async {
+      // print(loginUrl);
       final response = await http.post(
         Uri.parse(loginUrl),
         headers: {
@@ -380,23 +413,36 @@ class _EditUploadPhotoState extends State<EditUploadPhoto> {
       );
 
       if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        print(responseData);
+        Authorization = json.decode(response.body)['access token'];
+        print(Authorization);
       } else {
         print('Request failed with status: ${response.statusCode}.');
       }
     }
 
-    // widget.user.photo = "assets/image/peach.jpg";
+    Future<void> handleSignupLoginUpload() async {
+      await signupUser().then((_) {
+        return loginUser();
+      }).then((_) {
+        return UploadUserProfilePicture();
+      });
+    }
+
     return Container(
       constraints: BoxConstraints(maxWidth: 250),
       margin: EdgeInsets.only(bottom: 10),
       child: CustomButton(
         label: '完成',
-        onPressed: () {
-          signupUser();
-          Navigator.push(
-              context, MaterialPageRoute(builder: (context) => MyApp()));
+        onPressed: () async {
+          var place = await LocationService().getPlace(
+            widget.location == "" ? "成功大學 榕園" : widget.location);
+          await init_place(place);
+          await handleSignupLoginUpload();
+          Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => MyApp()),
+                (Route<dynamic> route) => false,
+          );
         },
       ),
     );

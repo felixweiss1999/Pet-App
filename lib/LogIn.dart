@@ -1,20 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:pet_app/MainPage.dart';
-import 'CustomButton.dart';
 import 'PetApp.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-
-UserData demoUser1 = UserData(
-  name: "peach",
-  username: 'demouser',
-  password: 'demopw',
-  follower: 116,
-  pet_count: 2,
-  intro: "aasddf",
-  photo: "assets/image/peach.jpg",
-  petdatas: [demoPet1, demoPet2],
-);
 
 class AccessPage extends StatefulWidget {
   const AccessPage({super.key});
@@ -26,10 +14,12 @@ class AccessPage extends StatefulWidget {
 class _AccessPageState extends State<AccessPage> {
   bool hidePassword = true;
   String _email = "", _password = "";
-  String loginUrl = 'http://10.0.2.2:8000/user/login';
-  String GetUserUrl = 'http://10.0.2.2:8000/user/';
+  String loginUrl = PetApp.Server_Url + '/user/login';
+  String GetUserUrl = PetApp.Server_Url + '/user/';
+  String AttractionUrl = PetApp.Server_Url + '/attraction';
 
   Future<void> loginUser() async {
+    PetApp.CurrentUser.authorization = '';
     final response = await http.post(
       Uri.parse(loginUrl),
       headers: {
@@ -47,23 +37,134 @@ class _AccessPageState extends State<AccessPage> {
       PetApp.CurrentUser.authorization = responseData['access token'];
       print(responseData);
       GetUser();
+      GetAttraction();
     } else {
+      PetApp.CurrentUser.authorization = '';
       print(
           'Request failed with status: ${json.decode(response.body)['detail']}.');
     }
   }
 
   Future<void> GetUser() async {
+    List<Posts> _post = [];
+    List<Pet> _pet = [];
+    List<Comment> _comment = [];
+    List<String> _follower = [], _following = [];
     final response = await http.get(Uri.parse(GetUserUrl + _email), headers: {
       'accept': 'application/json',
     });
 
     if (response.statusCode == 200) {
-      final responseData = json.decode(response.body);
+      final responseData = json.decode(utf8.decode(response.bodyBytes));
+      for (var post in responseData['posts']) {
+        if (post['response_to'] == 0) {
+          var temp1 = post['files'][0]['file_path'].split("/");
+          var temp2 = temp1[1].split(".");
+          List<Like> _like = [];
+          for (var like in post['likes']) {
+            _like.add(
+              Like(liker: like['liker'], timestamp: like['timestamp'])
+            );
+          }
+          _post.add(Posts(
+              owner_id: post["owner_id"],
+              content: post["content"],
+              id: post["id"],
+              timestamp: post["timestamp"],
+              response_to: post['response_to'],
+              label: post['label'],
+              Likes: _like,
+              post_picture: "${PetApp.Server_Url}/file/${temp2[0]}"));
+        } else {
+          _comment.add(Comment(
+              owner_id: post["owner_id"],
+              content: post["content"],
+              timestamp: post["timestamp"],
+              response_to: post['response_to']));
+        }
+      }
+      for (var pets in responseData['pets']) {
+        var temp1 = pets['files'][0]['file_path'].split("/");
+        var temp2 = temp1[1].split(".");
+        _pet.add(Pet(
+            owner: pets['owner'],
+            birthday: pets['birthday'],
+            breed: pets['breed'],
+            gender: pets['gender'],
+            id: pets['id'],
+            name: pets['name'],
+            personality_labels: pets['personality_labels'],
+            picture: "${PetApp.Server_Url}/file/${temp2[0]}"));
+      }
+
+      for (var fs in responseData['follows']) {
+        _following.add(fs['follows']);
+      }
+
+      for (var fs in responseData['followed_by']) {
+        _follower.add(fs['follower']);
+      }
+
       PetApp.CurrentUser.email = responseData['email'];
       PetApp.CurrentUser.name = responseData['name'];
       PetApp.CurrentUser.intro = responseData['intro'];
-      PetApp.CurrentUser.birthday = responseData['birthday'];
+      PetApp.CurrentUser.locations = responseData['location'];
+      PetApp.CurrentUser.password = _password;
+      PetApp.CurrentUser.posts = _post;
+      PetApp.CurrentUser.pets = _pet;
+      PetApp.CurrentUser.comments = _comment;
+      PetApp.CurrentUser.Follower = _follower;
+      PetApp.CurrentUser.Following = _following;
+      PetApp.CurrentUser.profile_picture =
+          "${PetApp.Server_Url}/user/$_email/profile_picture";
+      print(responseData);
+    } else {
+      print(
+          'Request failed with status: ${json.decode(response.body)['detail']}.');
+    }
+  }
+
+  Future<void> GetAttraction() async {
+    List<Attraction> _attractions = [];
+    final response = await http.get(Uri.parse(AttractionUrl), headers: {
+      'accept': 'application/json',
+    });
+
+    if (response.statusCode == 200) {
+      final responseData = json.decode(utf8.decode(response.bodyBytes));
+      for (var attraction in responseData) {
+        List<Posts> _post = [];
+        for (var post in attraction['posts']) {
+          if (post['response_to'] == 0) {
+            var temp1 = post['files'][0]['file_path'].split("/");
+            var temp2 = temp1[1].split(".");
+            List<Like> _like = [];
+            for (var like in post['likes']) {
+              _like.add(
+                Like(liker: like['liker'], timestamp: like['timestamp'])
+              );
+            }
+            _post.add(Posts(
+                owner_id: post["owner_id"],
+                content: post["content"],
+                id: post["id"],
+                timestamp: post["timestamp"],
+                response_to: post['response_to'],
+                label: post['label'],
+                Likes: _like,
+                post_picture: "${PetApp.Server_Url}/file/${temp2[0]}"));
+          }
+        }
+        _attractions.add(Attraction(
+            name: attraction['name'],
+            address: attraction['location'],
+            lat: attraction['lat'],
+            lon: attraction['lon'],
+            posts: _post,
+            id: attraction['id']));
+      }
+
+      PetApp.Attractions = _attractions;
       print(responseData);
     } else {
       print(
@@ -188,33 +289,99 @@ class _AccessPageState extends State<AccessPage> {
                 margin: EdgeInsets.only(bottom: 93),
                 child: Align(
                   alignment: Alignment.bottomCenter,
-                  child: Container(
-                    width: MediaQuery.of(context).size.width / 2,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        CustomButton(
-                          label: '確認',
-                          onPressed: () {
-                            //loginUser();
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => MainPage(user: demoUser1),
+                  child: FutureBuilder<void>(
+                    future: loginUser(),
+                    builder:
+                        (BuildContext context, AsyncSnapshot<void> snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return CircularProgressIndicator();
+                      } else if (snapshot.hasError) {
+                        return Text('Error: ${snapshot.error}');
+                      } else {
+                        return Container(
+                          width: MediaQuery.of(context).size.width / 2,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              CustomButton(
+                                label: '確認',
+                                onPressed: () {
+                                  if (PetApp.CurrentUser.authorization != '') {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => MainPage(
+                                          current_index: 0,
+                                        ),
+                                      ),
+                                    );
+                                  } else {
+                                    showDialog(
+                                      context: context,
+                                      builder: (BuildContext context) {
+                                        var screenSize =
+                                            MediaQuery.of(context).size;
+                                        var dialogWidth =
+                                            screenSize.width * 1 / 2;
+                                        var dialogHeight =
+                                            screenSize.height * 1 / 4;
+                                        return Dialog(
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(10.0),
+                                          ),
+                                          child: Container(
+                                            height: dialogHeight,
+                                            width: dialogWidth,
+                                            padding: const EdgeInsets.all(16.0),
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.end,
+                                                  children: [
+                                                    IconButton(
+                                                      icon: Icon(Icons.close),
+                                                      onPressed: () {
+                                                        Navigator.of(context)
+                                                            .pop();
+                                                      },
+                                                    ),
+                                                  ],
+                                                ),
+                                                SizedBox(height: 16.0),
+                                                Text(
+                                                  '帳號密碼錯誤',
+                                                  style: TextStyle(
+                                                    fontSize: 18.0,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                                SizedBox(height: 16.0),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  }
+                                },
                               ),
-                            );
-                          },
-                        ),
-                        SizedBox(height: 20),
-                        CustomButton(
-                          label: '返回',
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
-                        ),
-                      ],
-                    ),
+                              SizedBox(height: 20),
+                              CustomButton(
+                                label: '返回',
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                    },
                   ),
                 ),
               ),

@@ -1,31 +1,23 @@
 import 'dart:ui';
 import 'dart:math';
 import 'package:flutter/material.dart';
-
-class Message {
-  String text;
-  String sender;
-  bool isPicture;
-  DateTime sentTime;
-
-  Message(
-      {required this.text,
-      required this.sender,
-      required this.isPicture,
-      required this.sentTime});
-}
+import 'package:http/http.dart' as http;
+import 'PetApp.dart';
+import 'dart:convert';
 
 class ChatPage extends StatefulWidget {
   final String chatname;
   final List<Message> messages;
   final String currentUser;
   final String photo;
+  final int chatID;
   ChatPage(
       {super.key,
       required this.chatname,
       required this.photo,
       required this.messages,
-      required this.currentUser}) {
+      required this.currentUser,
+      required this.chatID}) {
     messages.sort((a, b) => b.sentTime.compareTo(a.sentTime));
   }
 
@@ -49,8 +41,8 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    print(widget.photo);
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0, // 去除阴影
@@ -81,7 +73,7 @@ class _ChatPageState extends State<ChatPage> {
               itemCount: widget.messages.length,
               itemBuilder: (context, index) {
                 final message = widget.messages[index];
-                final isMe = message.sender == widget.currentUser;
+                final isMe = message.sender == PetApp.CurrentUser.email;
 
                 return _buildMessage(message, isMe);
               },
@@ -105,7 +97,7 @@ class _ChatPageState extends State<ChatPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              mic_on ? '開始辨識...' : '常按即可錄音辨識寵物情緒',
+              mic_on ? '開始辨識...' : '長按即可錄音辨識寵物情緒',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 8),
@@ -170,7 +162,8 @@ class _ChatPageState extends State<ChatPage> {
             isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: <Widget>[
           Text(
-            message.sender,
+            isMe ? PetApp.CurrentUser.name :
+            widget.chatname,
             style: TextStyle(
               fontSize: 14.0,
               fontWeight: FontWeight.bold,
@@ -191,7 +184,10 @@ class _ChatPageState extends State<ChatPage> {
                 if (!message.isPicture)
                   TextSpan(
                     text: message.text,
-                    style: TextStyle(fontSize: 16.0),
+                    style: TextStyle(
+                      fontSize: 16.0,
+                      color: Colors.black
+                    ),
                   ),
               ],
             ),
@@ -247,7 +243,9 @@ class _ChatPageState extends State<ChatPage> {
                 Icons.photo,
                 color: Color.fromRGBO(96, 175, 245, 1),
               ),
-              onPressed: () {},
+              onPressed: () {
+                _focusNode.unfocus();
+              },
             ),
             IconButton(
               icon: Icon(
@@ -255,6 +253,7 @@ class _ChatPageState extends State<ChatPage> {
                 color: Color.fromRGBO(96, 175, 245, 1),
               ),
               onPressed: () {
+                _focusNode.unfocus();
                 setState(() {
                   _ismicSheetVisible = !_ismicSheetVisible;
                 });
@@ -269,6 +268,9 @@ class _ChatPageState extends State<ChatPage> {
                 autofocus: true,
                 cursorColor: Colors.black,
                 controller: _textController,
+                onTap: () {
+                  _ismicSheetVisible = false;
+                },
                 onChanged: (text) {
                   setState(() {
                     _isComposing = text.isNotEmpty;
@@ -295,8 +297,33 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  void _handleSubmitted(String text) {
+  Future<DateTime> postMessage(String text) async {
+    final response = await http.post(
+        Uri.parse("${PetApp.Server_Url}/chat/sendmsg"),
+        headers: {
+          'accept': 'application/json',
+          'Authorization': 'Bearer ${PetApp.CurrentUser.authorization}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'chat': widget.chatID,
+          'owner': PetApp.CurrentUser.email,
+          'content': text
+        }));
+    if (response.statusCode == 200) {
+      final responseData = json.decode(response.body);
+      return DateTime.fromMillisecondsSinceEpoch(
+          responseData['timestamp'] * 1000);
+    } else {
+      print(
+          'Request failed with status: ${json.decode(response.body)['detail']}.');
+    }
+    return DateTime.now();
+  }
+
+  void _handleSubmitted(String text) async {
     _textController.clear();
+    DateTime receivedAt = await postMessage(text);
     setState(() {
       _isComposing = false;
       widget.messages.insert(
@@ -305,7 +332,7 @@ class _ChatPageState extends State<ChatPage> {
               text: text,
               sender: widget.currentUser,
               isPicture: false,
-              sentTime: DateTime.now()));
+              sentTime: receivedAt));
     });
     FocusScope.of(context).requestFocus(_focusNode);
   }

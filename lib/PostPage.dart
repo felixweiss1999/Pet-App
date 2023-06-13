@@ -1,18 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'PetApp.dart';
 import 'SearchLocationPage.dart';
 import 'MainPage.dart';
-
-UserData demoUser1 = UserData(
-  name: "peach",
-  username: 'demouser',
-  password: 'demopw',
-  follower: 116,
-  pet_count: 2,
-  intro: "aasddf",
-  photo: "assets/image/peach.jpg",
-  petdatas: [demoPet1, demoPet2],
-);
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'dart:io';
 
 class PostPage extends StatefulWidget {
   const PostPage({super.key});
@@ -23,22 +16,46 @@ class PostPage extends StatefulWidget {
 
 class _PostPageState extends State<PostPage> {
   TextEditingController _newItemController = TextEditingController();
+  String AttractionUrl = PetApp.Server_Url + '/attraction';
   String location = "新增地點";
+  int locationid = -1;
+  String imagePath = 'assets/image/NonePicture.png';
+  File? _imageFile;
+  int post_id = 0;
+
+  void chooseImage() async {
+    final pickedImage =
+        await ImagePicker().pickImage(source: ImageSource.gallery);
+
+    setState(() {
+      if (pickedImage != null) {
+        _imageFile = File(pickedImage.path);
+        imagePath = pickedImage.path;
+        print(pickedImage.path);
+      } else {
+        _imageFile = null;
+      }
+    });
+  }
+
   Widget buildPictureField() {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
         return Padding(
           padding: EdgeInsets.all(5.0),
           child: GestureDetector(
-            onTap: () {
-              // 點擊事件處理程式碼
-              print('點擊了圖片');
-            },
-            child: Image.asset(
-              'assets/image/NonePicture.png',
-              width: constraints.maxWidth, // 螢幕寬度的一半
-              fit: BoxFit.contain,
-            ),
+            onTap: chooseImage,
+            child: _imageFile != null
+              ? Image.file(
+                  _imageFile!,
+                  width: MediaQuery.of(context).size.width,
+                  fit: BoxFit.contain,
+                )
+              : Image.asset(
+                  imagePath,
+                  width: MediaQuery.of(context).size.width,
+                  fit: BoxFit.contain,
+                ),
           ),
         );
       },
@@ -214,141 +231,6 @@ class _PostPageState extends State<PostPage> {
     );
   }
 
-  // Widget buildLabelField(List<String> items) {
-  //   int rows = (items.length / 4).ceil();
-  //   List<Widget> rowsList = [];
-
-  //   for (int i = 0; i < rows; i++) {
-  //     List<Widget> buttonsList = [];
-
-  //     for (int j = i * 4; j < (i + 1) * 4 && j < items.length; j++) {
-  //       buttonsList.add(
-  //         Padding(
-  //           padding: EdgeInsets.symmetric(vertical: 4.0),
-  //           child: OutlinedButton(
-  //             onPressed: () {
-  //               if (selectedItems.contains(items[j])) {
-  //                 selectedItems.remove(items[j]);
-  //               } else {
-  //                 if (selectedItems.length < 4) {
-  //                   selectedItems.add(items[j]);
-  //                 }
-  //               }
-  //               setState(() {});
-  //             },
-  //             style: ButtonStyle(
-  //               padding: MaterialStateProperty.all<EdgeInsets>(
-  //                   EdgeInsets.symmetric(horizontal: 8.0)),
-  //               backgroundColor: MaterialStateProperty.all<Color>(
-  //                   Color.fromRGBO(170, 227, 254, 1)),
-  //               shape: MaterialStateProperty.all<RoundedRectangleBorder>(
-  //                 RoundedRectangleBorder(
-  //                   borderRadius: BorderRadius.circular(20.0),
-  //                 ),
-  //               ),
-  //             ),
-  //             child: Text(
-  //               items[j],
-  //               style: TextStyle(fontSize: 16.0, color: Colors.black),
-  //             ),
-  //           ),
-  //         ),
-  //       );
-  //     }
-
-  //     rowsList.add(
-  //       Row(
-  //         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-  //         children: buttonsList,
-  //       ),
-  //     );
-  //   }
-
-  //   // 加號按鈕
-  //   rowsList.add(
-  //     Row(
-  //       mainAxisAlignment: MainAxisAlignment.center,
-  //       children: [
-  //         Padding(
-  //           padding: EdgeInsets.symmetric(vertical: 8.0),
-  //           child: OutlinedButton(
-  //             onPressed: () {
-  //               // 彈出對話框輸入新項目
-  //               showDialog(
-  //                 context: context,
-  //                 builder: (context) => AlertDialog(
-  //                   title: Text(
-  //                     "新增label",
-  //                     style: TextStyle(
-  //                       fontWeight: FontWeight.bold,
-  //                     ),
-  //                   ),
-  //                   content: TextField(
-  //                     controller: _newItemController,
-  //                     decoration: InputDecoration(
-  //                       border: InputBorder.none, // 去除边框
-  //                       enabledBorder: UnderlineInputBorder(
-  //                         borderSide: BorderSide(
-  //                             color: Color.fromRGBO(
-  //                                 170, 227, 254, 1)), // 设置底线颜色为蓝色
-  //                       ),
-  //                       hintText: '輸入新label...',
-  //                     ),
-  //                   ),
-  //                   actions: [
-  //                     TextButton(
-  //                       onPressed: () {
-  //                         Navigator.pop(context);
-  //                       },
-  //                       child: Text("取消"),
-  //                     ),
-  //                     TextButton(
-  //                       onPressed: () {
-  //                         String newItem = _newItemController.text.trim();
-  //                         if (newItem.isNotEmpty) {
-  //                           items.add(newItem);
-
-  //                           setState(() {});
-  //                           Navigator.pop(context);
-  //                         }
-  //                       },
-  //                       child: Text("確定"),
-  //                     ),
-  //                   ],
-  //                 ),
-  //               );
-  //             },
-  //             style: ButtonStyle(
-  //               padding: MaterialStateProperty.all<EdgeInsets>(
-  //                   EdgeInsets.symmetric(horizontal: 16.0)),
-  //               backgroundColor: MaterialStateProperty.all<Color>(
-  //                   Color.fromRGBO(170, 227, 254, 1)),
-  //               shape: MaterialStateProperty.all<RoundedRectangleBorder>(
-  //                 RoundedRectangleBorder(
-  //                   borderRadius: BorderRadius.circular(20.0),
-  //                 ),
-  //               ),
-  //             ),
-  //             child: Icon(
-  //               Icons.add,
-  //               color: Colors.black,
-  //             ),
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-
-  //   return Container(
-  //     width: double.infinity,
-  //     // height: 50,
-
-  //     child: Column(
-  //       children: rowsList,
-  //     ),
-  //   );
-  // }
-
   List<String> items = [
     '飛盤',
     '接球',
@@ -358,10 +240,16 @@ class _PostPageState extends State<PostPage> {
     '衝刺',
     '笨狗',
   ];
+  String inputText = '';
   Widget buildInputField() {
     return Padding(
       padding: EdgeInsets.all(10.0),
       child: TextField(
+        onChanged: (value) {
+          setState(() {
+            inputText = value;
+          });
+        },
         decoration: InputDecoration(
           hintText: '輸入說明文字...',
           border: InputBorder.none,
@@ -412,8 +300,9 @@ class _PostPageState extends State<PostPage> {
               context,
               MaterialPageRoute(builder: (context) => SearchLocationPage()),
             ).then((value) {
+              locationid = value[1];
               setState(() {
-                location = value ?? '新增地點';
+                location = value[0];
               });
               // Do something with returned data
             });
@@ -438,6 +327,105 @@ class _PostPageState extends State<PostPage> {
     );
   }
 
+  Future<void> createPost(
+      String ownerid, int attractionid, String content) async {
+    final response = await http.post(
+      Uri.parse(PetApp.Server_Url + '/posts'),
+      headers: {
+        'accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': "Bearer ${PetApp.CurrentUser.authorization}",
+      },
+      body: jsonEncode({
+        'owner_id': ownerid,
+        'response_to': 0,
+        'attraction': attractionid,
+        'content': content,
+        'label': selectedItems.join(',')
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      final responseData = json.decode(response.body);
+      post_id = responseData['id'];
+      print(responseData);
+    } else {
+      print('Request failed with status: ${json.decode(response.body)['detail']}.');
+    }
+  }
+
+  Future<void> PostPicture() async {
+    var upUrl = Uri.parse("${PetApp.Server_Url}/posts/$post_id/file?fileending=jpg");
+    print(upUrl);
+    var request = http.MultipartRequest('POST', upUrl);
+    request.headers.addAll({
+      'accept': 'application/json',
+      'Authorization': "Bearer ${PetApp.CurrentUser.authorization}",
+    });
+    request.files.add(await http.MultipartFile.fromPath('file', imagePath));
+
+    var response = await request.send();
+
+    if (response.statusCode == 200) {
+      print('Profile picture uploaded successfully');
+    } else {
+      print('Failed to upload profile picture. Status code: ${response.statusCode}');
+    }
+  }
+
+  Future<void> GetAttraction() async {
+    List<Attraction> _attractions = [];
+    List<Posts> _updatePost = [];
+    final response = await http.get(Uri.parse(AttractionUrl), headers: {
+      'accept': 'application/json',
+    });
+
+    if (response.statusCode == 200) {
+      final responseData = json.decode(utf8.decode(response.bodyBytes));
+      for (var attraction in responseData) {
+        List<Posts> _post = [];
+        for (var post in attraction['posts']) {
+          if (post['response_to'] == 0) {
+            var temp1 = post['files'][0]['file_path'].split("/");
+            var temp2 = temp1[1].split(".");
+            _post.add(Posts(
+                owner_id: post["owner_id"],
+                content: post["content"],
+                label: post['label'],
+                id: post["id"],
+                timestamp: post["timestamp"],
+                response_to: post['response_to'],
+                post_picture: "${PetApp.Server_Url}/file/${temp2[0]}"));
+            if (post['owner_id'] == PetApp.CurrentUser.email) {
+              _updatePost.add(Posts(
+                owner_id: post["owner_id"],
+                content: post["content"],
+                id: post["id"],
+                label: post['label'],
+                timestamp: post["timestamp"],
+                response_to: post['response_to'],
+                post_picture: "${PetApp.Server_Url}/file/${temp2[0]}"));
+            }
+          }
+        }
+        _attractions.add(Attraction(
+            name: attraction['name'],
+            address: attraction['location'],
+            lat: attraction['lat'],
+            lon: attraction['lon'],
+            posts: _post,
+            id: attraction['id']));
+      }
+
+      PetApp.Attractions = _attractions;
+      PetApp.CurrentUser.posts = _updatePost;
+      print(responseData);
+    } else {
+      print(
+          'Request failed with status: ${json.decode(response.body)['detail']}.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -458,10 +446,7 @@ class _PostPageState extends State<PostPage> {
             onPressed: () {
               Navigator.pushAndRemoveUntil(
                 context,
-                new MaterialPageRoute(
-                    builder: (context) => new MainPage(
-                          user: demoUser1,
-                        )),
+                new MaterialPageRoute(builder: (context) => new MainPage(current_index: 0)),
                 (route) => route == null,
               );
             },
@@ -472,16 +457,32 @@ class _PostPageState extends State<PostPage> {
                 Icons.check,
                 color: Color.fromRGBO(96, 175, 245, 1),
               ),
-              onPressed: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  new MaterialPageRoute(
-                      builder: (context) => new MainPage(
-                            user: demoUser1,
-                          )),
-                  (route) => route == null,
-                );
+              onPressed: () async {
+                try {
+                  await createPost(PetApp.CurrentUser.email, locationid, inputText);
+                  await PostPicture();
+                  await GetAttraction();
+
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => MainPage(current_index: 0)),
+                    (route) => false,
+                  );
+                } catch (error) {
+                  print('Error occurred: $error');
+                }
               },
+              // onPressed: () {
+              //   createPost(PetApp.CurrentUser.email, locationid, inputText).then((_) {
+              //     return PostPicture();
+              //   });
+
+              //   Navigator.pushAndRemoveUntil(
+              //     context,
+              //     new MaterialPageRoute(builder: (context) => new MainPage()),
+              //     (route) => route == null,
+              //   );
+              // },
             ),
           ]),
       body: SingleChildScrollView(

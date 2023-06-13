@@ -1,8 +1,5 @@
-import 'dart:collection';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'SetLocationPage.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 
@@ -16,21 +13,17 @@ class AddPetProfilePage extends StatefulWidget {
 class _AddPetProfilePage extends State<AddPetProfilePage> {
   File? _image;
   final picker = ImagePicker();
+  String pet_name = '';
+  String pet_breed = '';
+  String pet_gender = '';
+  String pet_birthday = '';
+  String pet_personality_labels = '';
+  String pet_image_path = '';
   TextEditingController _nameController = TextEditingController();
-  TextEditingController _ageController = TextEditingController();
+  TextEditingController _breedController = TextEditingController();
+  TextEditingController _birthdayController = TextEditingController();
+  TextEditingController _genderController = TextEditingController();
   TextEditingController _newItemController = TextEditingController();
-
-  Future getImage() async {
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
-    setState(() {
-      if (pickedFile != null) {
-        _image = File(pickedFile.path);
-      } else {
-        print('No image selected.');
-      }
-    });
-  }
 
   List<String> selectedItems = [];
 
@@ -73,9 +66,11 @@ class _AddPetProfilePage extends State<AddPetProfilePage> {
               onPressed: () {
                 if (selectedItems.contains(items[j])) {
                   selectedItems.remove(items[j]);
+                  pet_personality_labels = selectedItems.join(', ');
                 } else {
                   if (selectedItems.length < 5) {
                     selectedItems.add(items[j]);
+                    pet_personality_labels = selectedItems.join(', ');
                   }
                 }
                 setState(() {});
@@ -211,6 +206,19 @@ class _AddPetProfilePage extends State<AddPetProfilePage> {
     '笨狗',
   ];
 
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedImage = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedImage != null) {
+      setState(() {
+        _image = File(pickedImage.path);
+        pet_image_path = pickedImage.path;
+        print(pickedImage.path);
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -223,7 +231,7 @@ class _AddPetProfilePage extends State<AddPetProfilePage> {
                 color: Color.fromRGBO(96, 175, 245, 1),
               ),
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(context,['','','','','','']);
               },
             ),
             title: Text(
@@ -238,7 +246,16 @@ class _AddPetProfilePage extends State<AddPetProfilePage> {
                   Icons.check,
                   color: Color.fromRGBO(96, 175, 245, 1),
                 ),
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.pop(context, [
+                    pet_name,
+                    pet_breed,
+                    pet_birthday,
+                    pet_gender,
+                    pet_personality_labels,
+                    pet_image_path
+                  ]);
+                },
               ),
             ]),
         body: Padding(
@@ -254,6 +271,12 @@ class _AddPetProfilePage extends State<AddPetProfilePage> {
                   ),
                 ),
                 TextField(
+                  controller: _nameController,
+                  onChanged: (value) {
+                    setState(() {
+                      pet_name = value;
+                    });
+                  },
                   decoration: InputDecoration(
                     border: InputBorder.none, // 去除边框
                     enabledBorder: UnderlineInputBorder(
@@ -271,6 +294,12 @@ class _AddPetProfilePage extends State<AddPetProfilePage> {
                   ),
                 ),
                 TextField(
+                  controller: _breedController,
+                  onChanged: (value) {
+                    setState(() {
+                      pet_breed = value;
+                    });
+                  },
                   decoration: InputDecoration(
                     border: InputBorder.none, // 去除边框
                     enabledBorder: UnderlineInputBorder(
@@ -282,19 +311,25 @@ class _AddPetProfilePage extends State<AddPetProfilePage> {
                 ),
                 SizedBox(height: 16),
                 Text(
-                  "寵物年齡",
+                  "寵物生日",
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 TextField(
+                  controller: _birthdayController,
+                  onChanged: (value) {
+                    setState(() {
+                      pet_birthday = value;
+                    });
+                  },
                   decoration: InputDecoration(
                     border: InputBorder.none, // 去除边框
                     enabledBorder: UnderlineInputBorder(
                       borderSide: BorderSide(
                           color: Color.fromRGBO(170, 227, 254, 1)), // 设置底线颜色为蓝色
                     ),
-                    hintText: '輸入寵物年齡...',
+                    hintText: '輸入寵物生日...',
                   ),
                 ),
                 SizedBox(height: 16),
@@ -305,6 +340,12 @@ class _AddPetProfilePage extends State<AddPetProfilePage> {
                   ),
                 ),
                 TextField(
+                  controller: _genderController,
+                  onChanged: (value) {
+                    setState(() {
+                      pet_gender = value;
+                    });
+                  },
                   decoration: InputDecoration(
                     border: InputBorder.none, // 去除边框
                     enabledBorder: UnderlineInputBorder(
@@ -325,32 +366,31 @@ class _AddPetProfilePage extends State<AddPetProfilePage> {
                 buildLabelField(items),
                 SizedBox(height: 16),
                 InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => AddPetProfilePage()),
-                    ).then((value) {
-                      // Do something with returned data
-                      setState() {}
-                      ;
-                    });
-                  },
+                  onTap: _pickImage,
                   child: Stack(
                     children: [
                       LayoutBuilder(
                         builder:
                             (BuildContext context, BoxConstraints constraints) {
-                          return ClipRRect(
-                            child: Image(
-                              image:
-                                  AssetImage('assets/image/NonePetPicture.png'),
-                              width: MediaQuery.of(context).size.width,
-                              fit: BoxFit.cover,
-                            ),
-                            borderRadius:
-                                BorderRadius.circular(10.0), // 可選，設置圓角
-                          );
+                          if (_image != null) {
+                            return ClipRRect(
+                              child: Image.file(
+                                _image!,
+                                width: MediaQuery.of(context).size.width,
+                                fit: BoxFit.cover,
+                              ),
+                              borderRadius: BorderRadius.circular(10.0),
+                            );
+                          } else {
+                            return ClipRRect(
+                              child: Image.asset(
+                                'assets/image/NonePetPicture.png',
+                                width: MediaQuery.of(context).size.width,
+                                fit: BoxFit.cover,
+                              ),
+                              borderRadius: BorderRadius.circular(10.0),
+                            );
+                          }
                         },
                       ),
                     ],
